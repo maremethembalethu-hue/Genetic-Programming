@@ -27,6 +27,16 @@ public class Node {
         this(t, val, new ArrayList<>(), null);
     }
 
+    // Convenience constructor (no children, with const val)
+    public Node(String t, String val, Double c) {
+        this(t, val, new ArrayList<>(), c);
+    }
+
+    // Convenience constructor (no const val)
+    public Node(String t, String val, List<Node> kids) {
+        this(t, val, kids, null);
+    }
+
     // Deep copy constructor
     public Node(Node n) {
         this.type = n.type;
