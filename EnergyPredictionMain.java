@@ -4,6 +4,7 @@ import java.util.Scanner;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.lang.Math;
 
 public class EnergyPredictionMain {
     static List<String> uct_timestamp = new ArrayList<>();
@@ -12,6 +13,10 @@ public class EnergyPredictionMain {
     static final int PopSize = 200;
     static final int MaxDepth = 7;
     static final int n = 7;
+    static double[][] X_train;
+    static double[][] X_test;
+    static double[] y_train; // Contains the targets
+    static double[] y_test;
     static Random random = new Random();
 
     static final String[] FUNCTIONS = {
@@ -20,13 +25,7 @@ public class EnergyPredictionMain {
             "MUL",
             "DIV",
     };
-    static final String[] TERMINALS = {
-            "LOAD0",
-            "LOAD1",
-            "LOAD2",
-            "LOAD3",
-            "CONST"
-    };
+    static String[] TERMINALS;
 
     public static void main(String args[]) {
 
@@ -46,12 +45,132 @@ public class EnergyPredictionMain {
             e.printStackTrace();
         }
 
+        // Total fitness cases = 201604 - n
+        int totalRows = electricLoad.size() - n;
+
+        double[][] X = new double[totalRows][n];
+        double[] y = new double[totalRows];
+
+        for (int i = 0; i < totalRows; i++) {
+            // Fill lag columns
+            for (int lag = 0; lag < n; lag++) {
+
+                X[i][lag] = electricLoad.get(i + lag);
+            }
+            // Target = value right after the lags
+            y[i] = electricLoad.get(i + n);
+        }
+
+        buildTerminalSet(n);
+        // ── STEP 3: Train/Test split (80/20) ──
+        int splitIndex = (int) (totalRows * 0.8);
+
+        // Training data
+        X_train = new double[splitIndex][n];
+        y_train = new double[splitIndex];
+
+        // Test data
+        X_test = new double[totalRows - splitIndex][n];
+        y_test = new double[totalRows - splitIndex];
+
+        // Copy rows into train
+        for (int i = 0; i < splitIndex; i++) {
+            X_train[i] = X[i];
+            y_train[i] = y[i];
+        }
+
+        // Copy rows into test
+        for (int i = splitIndex; i < totalRows; i++) {
+            X_test[i - splitIndex] = X[i];
+            y_test[i - splitIndex] = y[i];
+        }
+
         // Generate the Intial Population
         List<Node> population = new ArrayList<>();
         for (int i = 0; i <= PopSize; i++) {
             population.add(makeTrees());
         }
 
+        // Evaluate all
+        List<Double> rawFitness = new ArrayList<>();
+        for (Node prog : population) {
+            rawFitness.add(evaRawFittness(prog));
+        }
+
+    }
+
+    public static double evaRawFittness(Node prog) {
+        double rawFit = 0;
+
+        for (int i = 0; i < y_test.length; i++) {
+
+            rawFit += Math.abs(y_test[i] - evaluate(prog, X_test[i]));
+
+        }
+        return rawFit;
+    }
+
+    public static double evaluate(Node prog, double[] load) {
+        // Interpreter for our tree pragram.
+        // Walks the tree Recursively, evaluate the children
+
+        double result = 0;
+        if (prog.getVal().equals("term")) {
+
+            // Is it a constant (ERC)?
+            if (prog.getVal().equals("CONST")) {
+                return prog.getConstVal();
+            } else {
+                int lagNumber = Integer.parseInt(
+                        prog.getVal().replace("LOAD_", ""));
+
+                return load[lagNumber];
+            }
+        }
+
+        List<Double> childValues = new ArrayList<>();
+        for (Node child : prog.getChildren()) {
+            childValues.add(evaluate(child, load));
+        }
+
+        String fn = prog.getVal();
+
+        switch (fn) {
+            case "ADD":
+                result = childValues.get(0) - childValues.get(1);
+                break;
+            case "SUB":
+                result = childValues.get(0) - childValues.get(1);
+                break;
+            case "MUL":
+                result = childValues.get(0) - childValues.get(1);
+                break;
+
+            case "DIV":
+                result = childValues.get(0) - childValues.get(1);
+                break;
+            default:
+                result = 0.0;
+                break;
+        }
+        return result;
+
+    }
+
+    public static void buildTerminalSet(int lagCount) {
+        int n = lagCount;
+
+        // n lag terminals + 1 CONST slot
+        TERMINALS = new String[n + 1];
+
+        // Fill lag terminals dynamically
+        for (int i = 0; i < n; i++) {
+            TERMINALS[i] = "LOAD_" + (i + 1);
+            // lag_1, lag_2, lag_3 ... lag_n
+        }
+
+        // Last slot is always CONST
+        TERMINALS[n] = "CONST";
     }
 
     public static Node makeTrees() {

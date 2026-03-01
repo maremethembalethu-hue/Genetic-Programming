@@ -88,4 +88,13 @@ public class Node {
     public List<Node> getChildren() {
         return children;
     }
+
+    public String getVal() {
+        return valArity;
+    }
+
+    public double getConstVal() {
+
+        return constVal;
+    }
 }
