@@ -45,6 +45,47 @@ public class EnergyPredictionMain {
             e.printStackTrace();
         }
 
+        generateFitnessCases();
+        buildTerminalSet(n);
+
+        // Generate the Intial Population
+        List<Node> population = new ArrayList<>();
+        for (int i = 0; i <= PopSize; i++) {
+            population.add(makeTrees());
+        }
+
+        // Evaluate all
+        List<Double> rawFitness = new ArrayList<>();
+        for (Node prog : population) {
+            rawFitness.add(evaRawFittness(prog));
+        }
+
+        List<Double> fitnesses = normalizeFitness(rawFitness);
+
+    }
+
+    public static List<Double> normalizeFitness(List<Double> fitness) {
+
+        double totalAjustedFitness = 0;
+        List<Double> adj = new ArrayList<>();
+        List<Double> normalize = new ArrayList<>();
+        for (Double fit : fitness) {
+            double adjusted = 1 / (1 + fit);
+            adj.add(adjusted);
+            totalAjustedFitness += adjusted;
+        }
+
+        for (Double norm : adj) {
+
+            normalize.add(norm / totalAjustedFitness);
+        }
+
+        return normalize;
+
+    }
+
+    public static void generateFitnessCases() {
+
         // Total fitness cases = 201604 - n
         int totalRows = electricLoad.size() - n;
 
@@ -60,8 +101,6 @@ public class EnergyPredictionMain {
             // Target = value right after the lags
             y[i] = electricLoad.get(i + n);
         }
-
-        buildTerminalSet(n);
         // ── STEP 3: Train/Test split (80/20) ──
         int splitIndex = (int) (totalRows * 0.8);
 
@@ -85,18 +124,18 @@ public class EnergyPredictionMain {
             y_test[i - splitIndex] = y[i];
         }
 
-        // Generate the Intial Population
-        List<Node> population = new ArrayList<>();
-        for (int i = 0; i <= PopSize; i++) {
-            population.add(makeTrees());
-        }
+    }
 
-        // Evaluate all
-        List<Double> rawFitness = new ArrayList<>();
-        for (Node prog : population) {
-            rawFitness.add(evaRawFittness(prog));
-        }
+    private static int findIndex(List<Double> arr) {
+        int maxIndex = 0;
 
+        for (int i = 1; i < arr.size(); i++) {
+
+            if (arr.get(i) > maxIndex) {
+                maxIndex = i;
+            }
+        }
+        return maxIndex;
     }
 
     public static double evaRawFittness(Node prog) {
@@ -137,17 +176,16 @@ public class EnergyPredictionMain {
 
         switch (fn) {
             case "ADD":
-                result = childValues.get(0) - childValues.get(1);
+                result = childValues.get(0) + childValues.get(1);
                 break;
             case "SUB":
                 result = childValues.get(0) - childValues.get(1);
                 break;
             case "MUL":
-                result = childValues.get(0) - childValues.get(1);
+                result = childValues.get(0) * childValues.get(1);
                 break;
-
             case "DIV":
-                result = childValues.get(0) - childValues.get(1);
+                result = childValues.get(0) / childValues.get(1);
                 break;
             default:
                 result = 0.0;
