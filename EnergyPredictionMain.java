@@ -2,7 +2,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -19,6 +18,7 @@ public class EnergyPredictionMain {
     static final double CROSSOVER = 0.8;
     static final double MUTATION = 0.2;
     static final int TOURNAMENT = 6;
+    static final int MAXTREENODES = 50;
     static double[][] X_train;
     static double[][] X_test;
     static double[] y_train; // Contains the targets
@@ -57,7 +57,7 @@ public class EnergyPredictionMain {
         // Generate the Intial Population
         List<Node> population = new ArrayList<>();
         for (int i = 0; i <= PopSize; i++) {
-            population.add(makeTrees());
+            population.add(makeTrees(0));
         }
 
         // Evaluate all
@@ -74,13 +74,24 @@ public class EnergyPredictionMain {
             List<Node> newPop = new ArrayList<>();
             int bestIdx = findBestIndex(fitnesses);
             newPop.add(population.get(bestIdx).copy());
-
+            Node childA = new Node();
+            Node chileB = new Node();
             while (newPop.size() < PopSize) {
 
                 if (random.nextDouble() < CROSSOVER) {
 
                     Node parentA = tournamentSelect(population, fitnesses, TOURNAMENT);
                     Node parentB = tournamentSelect(population, fitnesses, TOURNAMENT);
+                    Node[] kids = crossover(parentA, parentB);
+
+                    if (random.nextDouble() < MUTATION) {
+                        childA = mutate(kids[0]);
+                    }
+                    if (random.nextDouble() < MUTATION) {
+                        chileB = mutate(kids[1]);
+                    }
+                    newPop.add(childA);
+                    newPop.add(chileB);
 
                 }
 
@@ -256,10 +267,11 @@ public class EnergyPredictionMain {
         TERMINALS[n] = "CONST";
     }
 
-    public static Node makeTrees() {
+    public static Node makeTrees(int depth) {
         // Randomly making full or grow trees at random
-
-        int depth = random.nextInt(6) + 2;
+        if (depth == 0) {
+            depth = random.nextInt(MaxDepth - 2 + 1) + 2;
+        }
 
         if (random.nextDouble() < 0.5) {
             return makeFullTree(depth);
@@ -324,4 +336,122 @@ public class EnergyPredictionMain {
 
     }
 
+    public static List<NodeList> getNodes(Node root) {
+        List<NodeList> result = new ArrayList<>();
+        walk(root, null, null, result);
+        return result;
+    }
+
+    private static void walk(Node node, Node parent, Integer index, List<NodeList> result) {
+        result.add(new NodeList(node, parent, index));
+
+        for (int i = 0; i < node.children.size(); i++) {
+            walk(node.children.get(i), node, i, result);
+        }
+    }
+
+    public static Node[] crossover(Node parentA, Node parentB) {
+
+        // Step 1: Deep copy parents
+        Node childA = parentA.copy();
+        Node childB = parentB.copy();
+
+        // Step 2: Collect nodes
+        List<NodeList> nodesA = getNodes(childA);
+        List<NodeList> nodesB = getNodes(childB);
+
+        Random rand = new Random();
+
+        if (nodesA.size() > 1 && nodesB.size() > 1) {
+
+            // 90% prefer internal nodes
+            List<NodeList> internalA = new ArrayList<>();
+            List<NodeList> internalB = new ArrayList<>();
+
+            for (NodeList ni : nodesA) {
+                if (!ni.node.getVal().equals("term")) {
+                    internalA.add(ni);
+                }
+            }
+
+            for (NodeList ni : nodesB) {
+                if (!ni.node.getVal().equals("term")) {
+                    internalB.add(ni);
+                }
+            }
+
+            NodeList selectedA;
+            NodeList selectedB;
+
+            if (!internalA.isEmpty() && !internalB.isEmpty()) {
+                selectedA = internalA.get(rand.nextInt(internalA.size()));
+                selectedB = internalB.get(rand.nextInt(internalB.size()));
+            } else {
+                selectedA = nodesA.get(rand.nextInt(nodesA.size()));
+                selectedB = nodesB.get(rand.nextInt(nodesB.size()));
+            }
+
+            // Step 3: Swap subtrees
+
+            // Replace in childA
+            if (selectedA.parent == null) {
+                childA = selectedB.node.copy();
+            } else {
+                selectedA.parent.setChildren(
+                        selectedA.index,
+                        selectedB.node.copy());
+            }
+
+            // Replace in childB
+            if (selectedB.parent == null) {
+                childB = selectedA.node.copy();
+            } else {
+                selectedB.parent.setChildren(
+                        selectedB.index,
+                        selectedA.node.copy());
+            }
+        }
+
+        return new Node[] { childA, childB };
+    }
+
+    public static Node mutate(Node prog) {
+
+        Node mt = prog.copy();
+        List<NodeList> nodes = getNodes(mt);
+        Random rand = new Random();
+        List<NodeList> inter_nodes = new ArrayList<>();
+
+        for (NodeList n : nodes) {
+            if (n.parent != null) {
+                inter_nodes.add(n);
+            }
+        }
+
+        if (!inter_nodes.isEmpty()) {
+            NodeList chosen = inter_nodes.get(rand.nextInt(inter_nodes.size()));
+            Node newTree = makeTrees(rand.nextInt(3) + 1);
+            chosen.parent.setChildren(chosen.index, newTree);
+        } else {
+            mt = makeTrees(0);
+        }
+        return mt;
+    }
+
+    public static Node limeTreeSize(Node prg) {
+
+        if (prg.size() > MAXTREENODES) {
+            List<NodeList> node = getNodes(prg);
+
+            for (int i = 0; i < prg.size(); i++) {
+                if (i > MAXTREENODES) {
+                    if (node.get(i).node != null) {
+                        node.get(i).node = null;
+                    }
+                }
+
+            }
+        }
+        return prg;
+    }
 }

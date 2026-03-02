@@ -22,6 +22,10 @@ public class Node {
         }
     }
 
+    public Node() {
+        this("", "", new ArrayList<>(), 0.0);
+    }
+
     // Convenience constructor (no children)
     public Node(String t, String val) {
         this(t, val, new ArrayList<>(), null);
@@ -76,6 +80,10 @@ public class Node {
         return 1 + maxDepth;
     }
 
+    public void setChildren(int index, Node prog) {
+        this.children.set(index, prog);
+    }
+
     // Optional helper methods
     public boolean isTerminal() {
         return children.isEmpty();
@@ -94,7 +102,7 @@ public class Node {
     }
 
     public double getConstVal() {
-
         return constVal;
     }
+
 }
