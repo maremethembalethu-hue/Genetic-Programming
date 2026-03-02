@@ -76,6 +76,7 @@ public class EnergyPredictionMain {
             newPop.add(population.get(bestIdx).copy());
             Node childA = new Node();
             Node chileB = new Node();
+            Node childElse = new Node();
             while (newPop.size() < PopSize) {
 
                 if (random.nextDouble() < CROSSOVER) {
@@ -90,13 +91,31 @@ public class EnergyPredictionMain {
                     if (random.nextDouble() < MUTATION) {
                         chileB = mutate(kids[1]);
                     }
-                    newPop.add(childA);
-                    newPop.add(chileB);
+                    newPop.add(limitTreeSize(childA));
+                    newPop.add(limitTreeSize(chileB));
 
+                } else {
+                    Node parent = tournamentSelect(population, fitnesses, TOURNAMENT);
+
+                    if (random.nextDouble() < MUTATION) {
+                        childElse = mutate(parent);
+                    } else {
+                        childElse = parent.copy();
+                        newPop.add(limitTreeSize(childElse));
+                    }
                 }
 
             }
 
+            population = newPop;
+
+            rawFitness.clear();
+            fitnesses.clear();
+            for (Node prog : population) {
+                rawFitness.add(evaRawFittness(prog));
+            }
+
+            fitnesses = normalizeFitness(rawFitness);
         }
 
     }
@@ -438,7 +457,7 @@ public class EnergyPredictionMain {
         return mt;
     }
 
-    public static Node limeTreeSize(Node prg) {
+    public static Node limitTreeSize(Node prg) {
 
         if (prg.size() > MAXTREENODES) {
             List<NodeList> node = getNodes(prg);
