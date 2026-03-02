@@ -2,6 +2,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.lang.Math;
@@ -13,6 +15,10 @@ public class EnergyPredictionMain {
     static final int PopSize = 200;
     static final int MaxDepth = 7;
     static final int n = 7;
+    static final int MAXGEN = 10;
+    static final double CROSSOVER = 0.8;
+    static final double MUTATION = 0.2;
+    static final int TOURNAMENT = 6;
     static double[][] X_train;
     static double[][] X_test;
     static double[] y_train; // Contains the targets
@@ -61,6 +67,26 @@ public class EnergyPredictionMain {
         }
 
         List<Double> fitnesses = normalizeFitness(rawFitness);
+
+        // Evolutionary loop
+        for (int i = 0; i < MAXGEN; i++) {
+
+            List<Node> newPop = new ArrayList<>();
+            int bestIdx = findBestIndex(fitnesses);
+            newPop.add(population.get(bestIdx).copy());
+
+            while (newPop.size() < PopSize) {
+
+                if (random.nextDouble() < CROSSOVER) {
+
+                    Node parentA = tournamentSelect(population, fitnesses, TOURNAMENT);
+                    Node parentB = tournamentSelect(population, fitnesses, TOURNAMENT);
+
+                }
+
+            }
+
+        }
 
     }
 
@@ -126,7 +152,26 @@ public class EnergyPredictionMain {
 
     }
 
-    private static int findIndex(List<Double> arr) {
+    public static Node tournamentSelect(List<Node> pup, List<Double> fit, int size) {
+
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < pup.size(); i++)
+            indices.add(i);
+
+        Collections.shuffle(indices);
+
+        int bestIdx = indices.get(0);
+
+        for (int k = 1; k < size; k++) {
+            int i = indices.get(k);
+            if (fit.get(i) < fit.get(bestIdx))
+                bestIdx = i;
+        }
+
+        return pup.get(bestIdx);
+    }
+
+    private static int findBestIndex(List<Double> arr) {
         int maxIndex = 0;
 
         for (int i = 1; i < arr.size(); i++) {
