@@ -11,14 +11,14 @@ public class EnergyPredictionMain {
     static List<String> uct_timestamp = new ArrayList<>();
     static List<Double> electricLoad = new ArrayList<>();
     static String header;
-    static final int PopSize = 200;
+    static final int PopSize = 20;
     static final int MaxDepth = 7;
     static final int n = 7;
-    static final int MAXGEN = 10;
+    static final int MAXGEN = 1;
     static final double CROSSOVER = 0.8;
     static final double MUTATION = 0.2;
-    static final int TOURNAMENT = 6;
-    static final int MAXTREENODES = 50;
+    static final int TOURNAMENT = 2;
+    static final int MAXTREENODES = 5;
     static double[][] X_train;
     static double[][] X_test;
     static double[] y_train; // Contains the targets
@@ -33,9 +33,10 @@ public class EnergyPredictionMain {
     };
     static String[] TERMINALS;
 
-    public static void main(String args[]) {
+    public static void main(String[] args) {
 
-        File csvFile = new File("Residential_Energy_Dataset_UK-2014-2020.csv");
+        System.out.println("Running from: " + System.getProperty("user.dir"));
+        File csvFile = new File("Residential_Energy_Dataset_UK- 2014-2020.csv");
         try {
             Scanner readCSV = new Scanner(csvFile);
             header = readCSV.nextLine();
@@ -51,29 +52,34 @@ public class EnergyPredictionMain {
             e.printStackTrace();
         }
 
+        System.out.println("Pass the generate fitness case and also terminal set");
         generateFitnessCases();
-        buildTerminalSet(n);
 
+        System.out.println("Generated the fitness case");
+        buildTerminalSet(n);
+        System.out.println("Buided the terminal set");
         // Generate the Intial Population
         List<Node> population = new ArrayList<>();
         for (int i = 0; i <= PopSize; i++) {
             population.add(makeTrees(0));
         }
+        System.out.println("Generated the populations =========  " + population.toString());
 
         // Evaluate all
         List<Double> rawFitness = new ArrayList<>();
         for (Node prog : population) {
             rawFitness.add(evaRawFittness(prog));
         }
-
+        System.out.println("Generated the Raw fitnesses");
         List<Double> fitnesses = normalizeFitness(rawFitness);
-
+        System.out.println("Generated the normalize fitnesses");
         // Evolutionary loop
         for (int i = 0; i < MAXGEN; i++) {
 
             List<Node> newPop = new ArrayList<>();
             int bestIdx = findBestIndex(fitnesses);
             newPop.add(population.get(bestIdx).copy());
+            System.out.println("Generated new POP  " + newPop);
             Node childA = new Node();
             Node chileB = new Node();
             Node childElse = new Node();
@@ -83,8 +89,10 @@ public class EnergyPredictionMain {
 
                     Node parentA = tournamentSelect(population, fitnesses, TOURNAMENT);
                     Node parentB = tournamentSelect(population, fitnesses, TOURNAMENT);
+                    System.out.println("Generated selected 1  " + parentA);
+                    System.out.println("Generated selected 2  " + parentB);
                     Node[] kids = crossover(parentA, parentB);
-
+                    System.out.println("Generated Kids " + kids[0].toString());
                     if (random.nextDouble() < MUTATION) {
                         childA = mutate(kids[0]);
                     }
@@ -94,6 +102,7 @@ public class EnergyPredictionMain {
                     newPop.add(limitTreeSize(childA));
                     newPop.add(limitTreeSize(chileB));
 
+                    // System.out.println("Generated Added to the new POP " + newPop);
                 } else {
                     Node parent = tournamentSelect(population, fitnesses, TOURNAMENT);
 
@@ -225,26 +234,26 @@ public class EnergyPredictionMain {
     }
 
     public static double evaluate(Node prog, double[] load) {
-        // Interpreter for our tree pragram.
-        // Walks the tree Recursively, evaluate the children
+        // if (prog == null) {
+        // return 0.0; // default value for missing nodes
+        // }
 
         double result = 0;
-        if (prog.getVal().equals("term")) {
 
-            // Is it a constant (ERC)?
-            if (prog.getVal().equals("CONST")) {
+        if ("term".equals(prog.getType())) {
+            if ("CONST".equals(prog.getVal())) {
                 return prog.getConstVal();
             } else {
-                int lagNumber = Integer.parseInt(
-                        prog.getVal().replace("LOAD_", ""));
-
+                int lagNumber = Integer.parseInt(prog.getVal().replace("LOAD_", ""));
                 return load[lagNumber];
             }
         }
 
         List<Double> childValues = new ArrayList<>();
         for (Node child : prog.getChildren()) {
-            childValues.add(evaluate(child, load));
+            if (child != null) {
+                childValues.add(evaluate(child, load));
+            }
         }
 
         String fn = prog.getVal();
@@ -266,8 +275,8 @@ public class EnergyPredictionMain {
                 result = 0.0;
                 break;
         }
-        return result;
 
+        return result;
     }
 
     public static void buildTerminalSet(int lagCount) {
@@ -278,8 +287,7 @@ public class EnergyPredictionMain {
 
         // Fill lag terminals dynamically
         for (int i = 0; i < n; i++) {
-            TERMINALS[i] = "LOAD_" + (i + 1);
-            // lag_1, lag_2, lag_3 ... lag_n
+            TERMINALS[i] = "LOAD_" + (i);
         }
 
         // Last slot is always CONST
@@ -344,10 +352,10 @@ public class EnergyPredictionMain {
         String typeOfFun = FUNCTIONS[random.nextInt(FUNCTIONS.length)];
         List<Node> children = new ArrayList<>();
         if (typeOfFun.equals("SQRT")) {
-            children.add(makeFullTree(depth - 1));
+            children.add(makeGrowTree(depth - 1));
         } else {
             for (int i = 0; i < 2; i++) {
-                children.add(makeFullTree(depth - 1));
+                children.add(makeGrowTree(depth - 1));
             }
         }
 
@@ -371,30 +379,25 @@ public class EnergyPredictionMain {
 
     public static Node[] crossover(Node parentA, Node parentB) {
 
-        // Step 1: Deep copy parents
         Node childA = parentA.copy();
         Node childB = parentB.copy();
 
-        // Step 2: Collect nodes
         List<NodeList> nodesA = getNodes(childA);
         List<NodeList> nodesB = getNodes(childB);
 
-        Random rand = new Random();
-
         if (nodesA.size() > 1 && nodesB.size() > 1) {
 
-            // 90% prefer internal nodes
             List<NodeList> internalA = new ArrayList<>();
             List<NodeList> internalB = new ArrayList<>();
 
             for (NodeList ni : nodesA) {
-                if (!ni.node.getVal().equals("term")) {
+                if (!ni.node.getType().equals("term")) {
                     internalA.add(ni);
                 }
             }
 
             for (NodeList ni : nodesB) {
-                if (!ni.node.getVal().equals("term")) {
+                if (!ni.node.getType().equals("term")) {
                     internalB.add(ni);
                 }
             }
@@ -402,32 +405,24 @@ public class EnergyPredictionMain {
             NodeList selectedA;
             NodeList selectedB;
 
-            if (!internalA.isEmpty() && !internalB.isEmpty()) {
-                selectedA = internalA.get(rand.nextInt(internalA.size()));
-                selectedB = internalB.get(rand.nextInt(internalB.size()));
+            if (random.nextDouble() < 0.9 && !internalA.isEmpty() && !internalB.isEmpty()) {
+                selectedA = internalA.get(random.nextInt(internalA.size()));
+                selectedB = internalB.get(random.nextInt(internalB.size()));
             } else {
-                selectedA = nodesA.get(rand.nextInt(nodesA.size()));
-                selectedB = nodesB.get(rand.nextInt(nodesB.size()));
+                selectedA = nodesA.get(random.nextInt(nodesA.size()));
+                selectedB = nodesB.get(random.nextInt(nodesB.size()));
             }
 
-            // Step 3: Swap subtrees
-
-            // Replace in childA
             if (selectedA.parent == null) {
                 childA = selectedB.node.copy();
             } else {
-                selectedA.parent.setChildren(
-                        selectedA.index,
-                        selectedB.node.copy());
+                selectedA.parent.setChildren(selectedA.index, selectedB.node.copy());
             }
 
-            // Replace in childB
             if (selectedB.parent == null) {
                 childB = selectedA.node.copy();
             } else {
-                selectedB.parent.setChildren(
-                        selectedB.index,
-                        selectedA.node.copy());
+                selectedB.parent.setChildren(selectedB.index, selectedA.node.copy());
             }
         }
 
@@ -460,17 +455,19 @@ public class EnergyPredictionMain {
     public static Node limitTreeSize(Node prg) {
 
         if (prg.size() > MAXTREENODES) {
-            List<NodeList> node = getNodes(prg);
 
-            for (int i = 0; i < prg.size(); i++) {
-                if (i > MAXTREENODES) {
-                    if (node.get(i).node != null) {
-                        node.get(i).node = null;
-                    }
+            List<NodeList> nodes = getNodes(prg);
+
+            for (int i = MAXTREENODES; i < nodes.size(); i++) {
+
+                NodeList entry = nodes.get(i);
+
+                if (entry != null && entry.parent != null) {
+                    entry.parent.getChildren().remove(entry.index);
                 }
-
             }
         }
+
         return prg;
     }
 }

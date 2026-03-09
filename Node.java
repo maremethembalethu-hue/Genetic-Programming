@@ -60,9 +60,13 @@ public class Node {
     // Count total nodes in this subtree
     public int size() {
         int total = 1;
+
         for (Node child : children) {
-            total += child.size();
+            if (child != null) {
+                total += child.size();
+            }
         }
+
         return total;
     }
 
@@ -105,4 +109,7 @@ public class Node {
         return constVal;
     }
 
+    public String getType() {
+        return type;
+    }
 }
