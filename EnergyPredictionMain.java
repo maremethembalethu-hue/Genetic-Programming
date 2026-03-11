@@ -23,7 +23,8 @@ public class EnergyPredictionMain {
     static double[][] X_test;
     static double[] y_train; // Contains the targets
     static double[] y_test;
-    static Random random = new Random();
+    public static final long SEED = 145;
+    static Random random = new Random(SEED);
 
     static final String[] FUNCTIONS = {
             "ADD",
@@ -52,12 +53,10 @@ public class EnergyPredictionMain {
             e.printStackTrace();
         }
 
-        System.out.println("Pass the generate fitness case and also terminal set");
         generateFitnessCases();
 
-        System.out.println("Generated the fitness case");
         buildTerminalSet(n);
-        System.out.println("Buided the terminal set");
+
         // Generate the Intial Population
         List<Node> population = new ArrayList<>();
         for (int i = 0; i <= PopSize; i++) {
@@ -66,20 +65,20 @@ public class EnergyPredictionMain {
         System.out.println("Generated the populations =========  " + population.toString());
 
         // Evaluate all
-        List<Double> rawFitness = new ArrayList<>();
+        List<Double> mseFitness = new ArrayList<>();
         for (Node prog : population) {
-            rawFitness.add(evaRawFittness(prog));
+            mseFitness.add(mseFittness(prog));
         }
-        System.out.println("Generated the Raw fitnesses");
-        List<Double> fitnesses = normalizeFitness(rawFitness);
-        System.out.println("Generated the normalize fitnesses");
+
+        // List<Double> mseFitness = normalizeFitness(mseFitness);
+
         // Evolutionary loop
         for (int i = 0; i < MAXGEN; i++) {
 
             List<Node> newPop = new ArrayList<>();
-            int bestIdx = findBestIndex(fitnesses);
+            int bestIdx = findBestIndex(mseFitness);
             newPop.add(population.get(bestIdx).copy());
-            System.out.println("Generated new POP  " + newPop);
+
             Node childA = new Node();
             Node chileB = new Node();
             Node childElse = new Node();
@@ -87,12 +86,11 @@ public class EnergyPredictionMain {
 
                 if (random.nextDouble() < CROSSOVER) {
 
-                    Node parentA = tournamentSelect(population, fitnesses, TOURNAMENT);
-                    Node parentB = tournamentSelect(population, fitnesses, TOURNAMENT);
-                    System.out.println("Generated selected 1  " + parentA);
-                    System.out.println("Generated selected 2  " + parentB);
+                    Node parentA = tournamentSelect(population, mseFitness, TOURNAMENT);
+                    Node parentB = tournamentSelect(population, mseFitness, TOURNAMENT);
+
                     Node[] kids = crossover(parentA, parentB);
-                    System.out.println("Generated Kids " + kids[0].toString());
+
                     if (random.nextDouble() < MUTATION) {
                         childA = mutate(kids[0]);
                     }
@@ -104,7 +102,7 @@ public class EnergyPredictionMain {
 
                     // System.out.println("Generated Added to the new POP " + newPop);
                 } else {
-                    Node parent = tournamentSelect(population, fitnesses, TOURNAMENT);
+                    Node parent = tournamentSelect(population, mseFitness, TOURNAMENT);
 
                     if (random.nextDouble() < MUTATION) {
                         childElse = mutate(parent);
@@ -117,14 +115,14 @@ public class EnergyPredictionMain {
             }
 
             population = newPop;
-
-            rawFitness.clear();
-            fitnesses.clear();
+            System.out.println("Size of the new population: " + population.size());
+            mseFitness.clear();
+            // mseFitness.clear();
             for (Node prog : population) {
-                rawFitness.add(evaRawFittness(prog));
+                mseFitness.add(mseFittness(prog));
             }
 
-            fitnesses = normalizeFitness(rawFitness);
+            // mseFitness = normalizeFitness(mseFitness);
         }
 
     }
@@ -222,15 +220,28 @@ public class EnergyPredictionMain {
         return maxIndex;
     }
 
-    public static double evaRawFittness(Node prog) {
-        double rawFit = 0;
+    // public static double evaRawFittness(Node prog) {
+    // double rawFit = 0;
 
-        for (int i = 0; i < y_test.length; i++) {
+    // for (int i = 0; i < y_test.length; i++) {
 
-            rawFit += Math.abs(y_test[i] - evaluate(prog, X_test[i]));
+    // rawFit += Math.abs(y_test[i] - evaluate(prog, X_test[i]));
 
+    // }
+    // return rawFit;
+    // }
+
+    public static double mseFittness(Node prog) {
+        double mseFit = 0;
+
+        for (int i = 0; i < y_train.length; i++) {
+            double prediction = evaluate(prog, X_train[i]);
+            mseFit = prediction - y_train[i];
+            mseFit = Math.abs(mseFit);
         }
-        return rawFit;
+
+        return mseFit / y_train.length;
+
     }
 
     public static double evaluate(Node prog, double[] load) {
@@ -269,7 +280,12 @@ public class EnergyPredictionMain {
                 result = childValues.get(0) * childValues.get(1);
                 break;
             case "DIV":
-                result = childValues.get(0) / childValues.get(1);
+                double b = childValues.get(1);
+                if (Math.abs(b) > 1e-4) {
+                    result = childValues.get(0) / b;
+                } else {
+                    result = 1.0;
+                }
                 break;
             default:
                 result = 0.0;
