@@ -18,14 +18,22 @@ public class EnergyPredictionMain {
     static final double CROSSOVER = 0.8;
     static final double MUTATION = 0.2;
     static final int TOURNAMENT = 2;
-    static final int MAXTREENODES = 5;
+    static final int MAXTREENODES = 7;
     static double[][] X_train;
     static double[][] X_test;
     static double[] y_train; // Contains the targets
     static double[] y_test;
-    public static final long SEED = 145;
+    static long SEED = 145;
     static Random random = new Random(SEED);
 
+    // Start Time
+    static long startTime = 0;
+    // End Time
+    static long endtime = 0;
+
+    // Average of the best fitness
+    static List<Double> bestFitnesses = new ArrayList<>();
+    //
     static final String[] FUNCTIONS = {
             "ADD",
             "SUB",
@@ -56,7 +64,7 @@ public class EnergyPredictionMain {
         generateFitnessCases();
 
         buildTerminalSet(n);
-
+        tick();
         // Generate the Intial Population
         List<Node> population = new ArrayList<>();
         for (int i = 0; i <= PopSize; i++) {
@@ -67,7 +75,7 @@ public class EnergyPredictionMain {
         // Evaluate all
         List<Double> mseFitness = new ArrayList<>();
         for (Node prog : population) {
-            mseFitness.add(mseFittness(prog));
+            mseFitness.add(mseFittness(prog, y_train, X_train));
         }
 
         // List<Double> mseFitness = normalizeFitness(mseFitness);
@@ -76,7 +84,11 @@ public class EnergyPredictionMain {
         for (int i = 0; i < MAXGEN; i++) {
 
             List<Node> newPop = new ArrayList<>();
+            // get the best index in prog and the population
             int bestIdx = findBestIndex(mseFitness);
+            // Getting the best fitness for that generation or run
+            bestFitnesses.add(mseFitness.get(bestIdx));
+
             newPop.add(population.get(bestIdx).copy());
 
             Node childA = new Node();
@@ -117,14 +129,66 @@ public class EnergyPredictionMain {
             population = newPop;
             System.out.println("Size of the new population: " + population.size());
             mseFitness.clear();
-            // mseFitness.clear();
+            random = new Random(SEED + (i + 1));
             for (Node prog : population) {
-                mseFitness.add(mseFittness(prog));
+                mseFitness.add(mseFittness(prog, y_train, X_test));
             }
 
             // mseFitness = normalizeFitness(mseFitness);
         }
+        tock();
 
+        // The experimental results
+        resultsForGP();
+
+        // Testing the best equation
+        testBestProg(population.get(findBestIndex(mseFitness)));
+    }
+
+    public static void testBestProg(Node prg) {
+        tick();
+        System.out.println(
+                "The Error Of The Best Tree On Unseen Data: " + Double.toString(mseFittness(prg, y_test, X_test)));
+        tock();
+        System.out.println("The Best Equation Found: " + prg.toString());
+
+        System.out.println("The Run Time For The Best Equation: " + Long.toString((endtime - startTime)));
+
+    }
+
+    public static void resultsForGP() {
+        int numOfRun = bestFitnesses.size();
+        // The average of the error
+        double avg = 0;
+        // Standard division
+        double stdOperation = 0;
+        for (int i = 0; i < numOfRun; i++) {
+            System.out.println("Run: " + Integer.toString(i) + " The error: " + Double.toString(bestFitnesses.get(1)));
+            avg += bestFitnesses.get(i);
+        }
+        for (int i = 0; i < numOfRun; i++) {
+            double diffFromAvg = (bestFitnesses.get(i) - avg);
+            stdOperation += diffFromAvg * diffFromAvg;
+        }
+
+        double std = (double) stdOperation / (double) numOfRun;
+        System.out.println("Average of the: " + Double.toString(avg));
+        System.out.println("STD: " + Double.toString(Math.sqrt(std)));
+        int bestOffAllIndex = findBestIndex(bestFitnesses);
+        System.out.println("The run" + bestOffAllIndex + "The Best Error Found: "
+                + Double.toString(bestFitnesses.get(bestOffAllIndex)));
+
+        System.out.println("The Total Run Time: " + Long.toString((endtime - startTime)));
+    }
+
+    // Start time
+    private static void tick() {
+        startTime = System.currentTimeMillis();
+    }
+
+    // End time
+    private static void tock() {
+        endtime = System.currentTimeMillis();
     }
 
     public static List<Double> normalizeFitness(List<Double> fitness) {
@@ -210,11 +274,13 @@ public class EnergyPredictionMain {
 
     private static int findBestIndex(List<Double> arr) {
         int maxIndex = 0;
+        double bestIndex = arr.get(0);
 
         for (int i = 1; i < arr.size(); i++) {
 
-            if (arr.get(i) > maxIndex) {
+            if (arr.get(i) < bestIndex) {
                 maxIndex = i;
+                bestIndex = arr.get(i);
             }
         }
         return maxIndex;
@@ -231,16 +297,16 @@ public class EnergyPredictionMain {
     // return rawFit;
     // }
 
-    public static double mseFittness(Node prog) {
+    public static double mseFittness(Node prog, double[] targetArr, double[][] datasetArr) {
         double mseFit = 0;
-
-        for (int i = 0; i < y_train.length; i++) {
-            double prediction = evaluate(prog, X_train[i]);
-            mseFit = prediction - y_train[i];
+        int n = targetArr.length;
+        for (int i = 0; i < n; i++) {
+            double prediction = evaluate(prog, datasetArr[i]);
+            mseFit = prediction - targetArr[i];
             mseFit = Math.abs(mseFit);
         }
 
-        return mseFit / y_train.length;
+        return (double) mseFit / (double) n;
 
     }
 

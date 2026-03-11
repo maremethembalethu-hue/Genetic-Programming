@@ -84,6 +84,26 @@ public class Node {
         return 1 + maxDepth;
     }
 
+    public String toString() {
+
+        if (this.getType().equals("term")) {
+
+            if (this.getVal().equals("CONST")) {
+                return String.format("%.2f", constVal);
+            }
+
+            return this.getVal(); // e.g. LOAD_1 or X
+        }
+        // Recursively convert children
+        StringBuilder args = new StringBuilder();
+
+        for (Node child : children) {
+            args.append(child.toString()).append(" ");
+        }
+
+        return "(" + this.getVal() + " " + args.toString().trim() + ")";
+    }
+
     public void setChildren(int index, Node prog) {
         this.children.set(index, prog);
     }
