@@ -4,9 +4,9 @@ import java.util.List;
 public class Node {
 
     String type; // "function" or "terminal"
-    String valArity;
-    List<Node> children;
-    Double constVal;
+    String valArity; // The type of function
+    List<Node> children; // Children of the node
+    Double constVal; // The constant value
 
     // Constructor
     public Node(String t, String val, List<Node> kids, Double c) {
@@ -28,7 +28,7 @@ public class Node {
 
     // Convenience constructor (no children)
     public Node(String t, String val) {
-        this(t, val, new ArrayList<>(), null);
+        this(t, val, new ArrayList<>(), 0.0);
     }
 
     // Convenience constructor (no children, with const val)
@@ -38,7 +38,7 @@ public class Node {
 
     // Convenience constructor (no const val)
     public Node(String t, String val, List<Node> kids) {
-        this(t, val, kids, null);
+        this(t, val, kids, 0.0);
     }
 
     // Deep copy constructor
