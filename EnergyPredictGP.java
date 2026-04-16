@@ -2,8 +2,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 
-import org.w3c.dom.Node;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -51,7 +49,7 @@ public class EnergyPredictGP {
     // Similarity threshold
     static final double SIM_TRH = 0.75;
     // Fraction of the population that must be similar
-    static final double CON_FRC = 0.6
+    static final double CVG_FRC = 0.6;
     // Adaptive mutation
     static final double MUTATION_HIGH = 0.45; // exploration mode
     static final double MUTATION_LOW = 0.10; // exploitation mode
@@ -122,37 +120,59 @@ public class EnergyPredictGP {
                     bestTreeThisRun = population.get(bestIdx).copy();
                 }
 
+                // Structure that are similar
+                int numOfsimilar[] = similarityTrees(population);
+
+                // We measure convergence as: fraction of individuals that are
+                // similar to at least one other individual (similarCount[i] > 0).
+                int cvgCount = 0;
+                for (int sc : numOfsimilar)
+                    if (sc > 0)
+                        cvgCount++;
+                double convergenceFraction = (double) cvgCount / PopSize;
+
+                if (convergenceFraction >= CVG_FRC) {
+                    // Population is converging increase exploration
+                    changeMutation = MUTATION_HIGH;
+
+                } else {
+                    // Population is diverse increase exploitation
+                    changeMutation = MUTATION_LOW;
+
+                }
                 List<Node> newPop = new ArrayList<>();
                 newPop.add(population.get(bestIdx).copy());
 
+                int remainingSize = PopSize - 1;
+                int mutationSize = (int) Math.round(remainingSize * changeMutation);
+                int crossoverSize = remainingSize - mutationSize;
+
+                int crossoverUsed = 0;
+                int mutationUsed = 0;
                 while (newPop.size() < PopSize) {
-                    if (random.nextDouble() < CROSSOVER) {
-                        Node parentA = tournamentSelect(population, arrMseFitness, TOURNAMENT);
-                        Node parentB = tournamentSelect(population, arrMseFitness, TOURNAMENT);
+
+                    if (crossoverUsed < crossoverSize) {
+                        Node parentA = selectDifferStruc(population, arrMseFitness, numOfsimilar, newPop);
+                        Node parentB = selectDifferStruc(population, arrMseFitness, numOfsimilar, newPop);
                         Node[] kids = crossover(parentA, parentB);
 
                         Node childA = kids[0];
-                        // Making complex tree if crossover produced a terminal
-                        if ("term".equals(childA.getType()) || random.nextDouble() < MUTATION)
-                            childA = mutate(childA);
-
                         Node childB = kids[1];
-                        if ("term".equals(childB.getType()) || random.nextDouble() < MUTATION)
-                            childB = mutate(childB);
 
-                        if (newPop.size() < PopSize)
+                        if (newPop.size() < PopSize) {
                             newPop.add(limitTreeSize(childA));
-                        if (newPop.size() < PopSize)
+                            crossoverUsed++;
+                        }
+                        if (newPop.size() < PopSize) {
                             newPop.add(limitTreeSize(childB));
+                            crossoverUsed++;
+                        }
                     } else {
-                        Node parent = tournamentSelect(population, arrMseFitness, TOURNAMENT);
-                        Node child = parent.copy();
-
-                        // Making complex tree if reproduction would copy a terminal
-                        if ("term".equals(parent.getType()) || random.nextDouble() < MUTATION)
-                            child = mutate(child);
+                        Node parent = selectDifferStruc(population, arrMseFitness, numOfsimilar, newPop);
+                        Node child = mutate(parent.copy());
 
                         newPop.add(limitTreeSize(child));
+                        mutationUsed++;
                     }
                 }
 
@@ -220,6 +240,116 @@ public class EnergyPredictGP {
                 + "  equation: " + allBestEquations.get(bestRunIdx));
         System.out.println("Total wall time (ms): " + totalTimeMs);
         computeEffort(successGenerations, PopSize);
+    }
+
+    public static int[] similarityTrees(List<Node> pup) {
+        int size = pup.size();
+        int[] numOfsimilar = new int[size];
+
+        for (int i = 0; i < size - 1; i++) {
+            for (int j = i + 1; j < size; j++) { // j > i avoids self and double-counting
+
+                double sim = similarity(pup.get(i), pup.get(j));
+
+                if (sim >= SIM_TRH) {
+                    numOfsimilar[i]++; // i is similar to j
+                    numOfsimilar[j]++; // j is similar to i (symmetric)
+                }
+            }
+        }
+
+        return numOfsimilar;
+
+    }
+
+    public static double similarity(Node a, Node b) {
+
+        // Collect nodes in BFS (level) order for both trees
+        List<Node> nodesA = bfsOrder(a);
+        List<Node> nodesB = bfsOrder(b);
+
+        int totalNodes = Math.max(nodesA.size(), nodesB.size());
+        if (totalNodes == 0)
+            return 1.0; // both empty – identical
+
+        int matchCount = 0;
+        int compareLen = Math.min(nodesA.size(), nodesB.size());
+
+        for (int k = 0; k < compareLen; k++) {
+            // Nodes match when they carry the same label (function or terminal name)
+            if (nodesA.get(k).getVal().equals(nodesB.get(k).getVal()))
+                matchCount++;
+        }
+
+        return (double) matchCount / totalNodes;
+    }
+
+    // node traversal
+    private static List<Node> bfsOrder(Node root) {
+        List<Node> result = new ArrayList<>();
+        List<Node> queue = new ArrayList<>();
+        queue.add(root);
+        while (!queue.isEmpty()) {
+            Node current = queue.remove(0);
+            result.add(current);
+            for (Node child : current.getChildren())
+                if (child != null)
+                    queue.add(child);
+        }
+        return result;
+    }
+
+    // measured by similarity between the choosen and every member of newPop and if
+    // the similrity in under the threshold
+    public static Node selectDifferStruc(List<Node> pup,
+            List<Double> fitness,
+            int[] numOfsimilar,
+            List<Node> newPop) {
+
+        int actualSize = Math.min(TOURNAMENT, pup.size());
+
+        // Draw random tournament choosens
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < pup.size(); i++)
+            indices.add(i);
+        Collections.shuffle(indices, random);
+
+        List<Integer> chosenIdx = new ArrayList<>();
+        for (int k = 0; k < actualSize; k++)
+            chosenIdx.add(indices.get(k));
+
+        // Separate chosenIdx into low similarity to newPop and high similarity to
+        // newPop
+        List<Integer> lowSim = new ArrayList<>();
+        List<Integer> highSim = new ArrayList<>();
+
+        for (int idx : chosenIdx) {
+            double avgSimDouble = avgSim(pup.get(idx), newPop);
+            if (avgSimDouble < SIM_TRH)
+                lowSim.add(idx);
+            else
+                highSim.add(idx);
+        }
+
+        // highSim group if no lowSim chosenIdx exist.
+        List<Integer> choose = lowSim.isEmpty() ? highSim : lowSim;
+
+        int bestIdx = choose.get(0);
+        for (int idx : choose)
+            if (fitness.get(idx) < fitness.get(bestIdx))
+                bestIdx = idx;
+
+        return pup.get(bestIdx);
+    }
+
+    // average similarity between one individual and a group
+    private static double avgSim(Node individual, List<Node> group) {
+        if (group.isEmpty())
+            return 0.0;
+        double total = 0.0;
+        for (Node member : group)
+            total += similarity(individual, member);
+        return total / group.size();
     }
 
     public static void computeEffort(List<Integer> successGenerations, int popSize) {
@@ -426,7 +556,7 @@ public class EnergyPredictGP {
         if (random.nextDouble() < 0.5) {
             return makeFullTree(depth);
         } else {
-            return makeGrowTree(depth);
+            return makeGrowTree(depth, true);
         }
     }
 
@@ -463,23 +593,23 @@ public class EnergyPredictGP {
         return new Node("fun", typeOfFun, children);
     }
 
-    public static Node makeGrowTree(int depth) {
+    public static Node makeGrowTree(int depth, Boolean isRoot) {
         if (depth <= 0) { // base case
             return makeTerminalNode();
         }
 
-        // ONLY 20% chance of terminal
-        if (random.nextDouble() < 0.20) {
+        // 30% chance of terminal
+        if (!isRoot && random.nextDouble() < 0.3) {
             return makeTerminalNode();
         }
 
         String typeOfFun = FUNCTIONS[random.nextInt(FUNCTIONS.length)];
         List<Node> children = new ArrayList<>();
         if (typeOfFun.equals("SQRT")) {
-            children.add(makeGrowTree(depth - 1));
+            children.add(makeGrowTree(depth - 1, false));
         } else {
             for (int i = 0; i < 2; i++) {
-                children.add(makeGrowTree(depth - 1));
+                children.add(makeGrowTree(depth - 1, false));
             }
         }
         return new Node("fun", typeOfFun, children);
@@ -538,15 +668,15 @@ public class EnergyPredictGP {
         // replace a random subtree with a new random subtree.
         Node mt = prog.copy();
         List<NodePt> allNodes = getNodes(mt);
-        List<NodePt> candidates = new ArrayList<>();
+        List<NodePt> choosens = new ArrayList<>();
         for (NodePt r : allNodes) {
             if (r.parent != null)
-                candidates.add(r); // skip root
+                choosens.add(r); // skip root
         }
-        if (!candidates.isEmpty()) {
-            NodePt chosen = candidates.get(random.nextInt(candidates.size()));
+        if (!choosens.isEmpty()) {
+            NodePt chosen = choosens.get(random.nextInt(choosens.size()));
             // replace with fresh subtree
-            chosen.parent.setChildren(chosen.index, makeGrowTree(2 + random.nextInt(2)));
+            chosen.parent.setChildren(chosen.index, makeGrowTree(2 + random.nextInt(2), true));
         } else {
             mt = makeTrees();
         }
