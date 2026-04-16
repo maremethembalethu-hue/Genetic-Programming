@@ -1,6 +1,9 @@
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
+
+import org.w3c.dom.Node;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -16,7 +19,7 @@ public class EnergyPredictGP {
     static final int n = 7;
     static final int MAXGEN = 50;
     static final double CROSSOVER = 0.8;
-    static final double MUTATION = 0.2;
+    static double MUTATION = 0.2; // default mutation rate
     static final int TOURNAMENT = 5;
     static final int MAXTREENODES = 63;
     static double[][] X_train;
@@ -44,6 +47,14 @@ public class EnergyPredictGP {
             "DIV",
     };
     static String[] TERMINALS;
+
+    // Similarity threshold
+    static final double SIM_TRH = 0.75;
+    // Fraction of the population that must be similar
+    static final double CON_FRC = 0.6
+    // Adaptive mutation
+    static final double MUTATION_HIGH = 0.45; // exploration mode
+    static final double MUTATION_LOW = 0.10; // exploitation mode
 
     public static void main(String[] args) {
 
@@ -93,6 +104,8 @@ public class EnergyPredictGP {
             }
 
             long runStart = System.currentTimeMillis();
+            // Starting with the default mutation
+            double changeMutation = MUTATION;
 
             int successGen = -1;
             for (int gen = 0; gen < MAXGEN; gen++) {
