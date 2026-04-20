@@ -15,7 +15,7 @@ public class EnergyPredictSBGP {
     static final int PopSize = 100;
     static final int MaxDepth = 6;
     static final int n = 7;
-    static final int MAXGEN = 50;
+    static final int MAXGEN = 25;
     static final double CROSSOVER = 0.8;
     static double MUTATION = 0.2; // default mutation rate
     static final int TOURNAMENT = 5;
@@ -45,6 +45,14 @@ public class EnergyPredictSBGP {
             "DIV",
     };
     static String[] TERMINALS;
+
+    // Similarity threshold
+    static final double SIM_TRH = 0.75;
+    // Fraction of the population that must be similar
+    static final double CVG_FRC = 0.6;
+    // Adaptive mutation
+    static final double MUTATION_HIGH = 0.45; // exploration mode
+    static final double MUTATION_LOW = 0.2; // exploitation mode
 
     public static void main(String[] args) {
 
@@ -114,11 +122,31 @@ public class EnergyPredictSBGP {
                     bestTreeThisRun = population.get(bestIdx).copy();
                 }
 
+                // Structure that are similar
+                int numOfsimilar[] = similarityTrees(population);
+
+                // We measure convergence as fraction of individuals that are similar to at
+                // least one other individual.
+                int cvgCount = 0;
+                for (int sc : numOfsimilar)
+                    if (sc > 0)
+                        cvgCount++;
+                double convergenceFraction = (double) cvgCount / PopSize;
+
+                if (convergenceFraction >= CVG_FRC) {
+                    // Population is converging increase exploration
+                    changeMutation = MUTATION_HIGH;
+
+                } else {
+                    // Population is diverse increase exploitation
+                    changeMutation = MUTATION_LOW;
+
+                }
                 List<Node> newPop = new ArrayList<>();
                 newPop.add(population.get(bestIdx).copy());
 
                 int remainingSize = PopSize - 1;
-                int mutationSize = (int) Math.round(remainingSize * MUTATION);
+                int mutationSize = (int) Math.round(remainingSize * changeMutation);
                 int crossoverSize = remainingSize - mutationSize;
 
                 int crossoverUsed = 0;
@@ -126,8 +154,8 @@ public class EnergyPredictSBGP {
                 while (newPop.size() < PopSize) {
 
                     if (crossoverUsed < crossoverSize) {
-                        Node parentA = tournamentSelect(population, arrMseFitness, TOURNAMENT);
-                        Node parentB = tournamentSelect(population, arrMseFitness, TOURNAMENT);
+                        Node parentA = selectDifferStruc(population, arrMseFitness, numOfsimilar, newPop);
+                        Node parentB = selectDifferStruc(population, arrMseFitness, numOfsimilar, newPop);
                         Node[] kids = crossover(parentA, parentB);
 
                         Node childA = kids[0];
@@ -148,7 +176,7 @@ public class EnergyPredictSBGP {
                             crossoverUsed++;
                         }
                     } else {
-                        Node parent = tournamentSelect(population, arrMseFitness, TOURNAMENT);
+                        Node parent = selectDifferStruc(population, arrMseFitness, numOfsimilar, newPop);
                         Node child = parent.copy();
 
                         // Making complex tree if reproduction would copy a terminal
@@ -226,6 +254,115 @@ public class EnergyPredictSBGP {
         computeEffort(successGenerations, PopSize);
     }
 
+    public static int[] similarityTrees(List<Node> pup) {
+        int size = pup.size();
+        int[] numOfsimilar = new int[size];
+
+        for (int i = 0; i < size - 1; i++) {
+            for (int j = i + 1; j < size; j++) { // j > i avoids self and double-counting
+
+                double sim = similarity(pup.get(i), pup.get(j));
+
+                if (sim >= SIM_TRH) {
+                    numOfsimilar[i]++; // i is similar to j
+                    numOfsimilar[j]++; // j is similar to i
+                }
+            }
+        }
+
+        return numOfsimilar;
+
+    }
+
+    public static double similarity(Node a, Node b) {
+
+        // Collect nodes in BFS order for both trees
+        List<Node> nodesA = bfsOrder(a);
+        List<Node> nodesB = bfsOrder(b);
+
+        int totalNodes = Math.max(nodesA.size(), nodesB.size());
+        if (totalNodes == 0)
+            return 1.0; // both empty
+
+        int matchCount = 0;
+        int compareLen = Math.min(nodesA.size(), nodesB.size());
+
+        for (int k = 0; k < compareLen; k++) {
+            // Nodes match when they carry the same label (function or terminal name)
+            if (nodesA.get(k).getVal().equals(nodesB.get(k).getVal()))
+                matchCount++;
+        }
+
+        return (double) matchCount / totalNodes;
+    }
+
+    // node traversal
+    private static List<Node> bfsOrder(Node root) {
+        List<Node> result = new ArrayList<>();
+        List<Node> queue = new ArrayList<>();
+        queue.add(root);
+        while (!queue.isEmpty()) {
+            Node current = queue.remove(0);
+            result.add(current);
+            for (Node child : current.getChildren())
+                if (child != null)
+                    queue.add(child);
+        }
+        return result;
+    }
+
+    // measured by similarity between the choosen and every member of newPop
+    public static Node selectDifferStruc(List<Node> pup,
+            List<Double> fitness,
+            int[] numOfsimilar,
+            List<Node> newPop) {
+
+        int actualSize = Math.min(TOURNAMENT, pup.size());
+
+        // Draw random tournament choosens
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < pup.size(); i++)
+            indices.add(i);
+        Collections.shuffle(indices, random);
+
+        List<Integer> chosenIdx = new ArrayList<>();
+        for (int k = 0; k < actualSize; k++)
+            chosenIdx.add(indices.get(k));
+
+        // Separate chosenIdx into low similarity to newPop and high similarity to
+        // newPop
+        List<Integer> lowSim = new ArrayList<>();
+        List<Integer> highSim = new ArrayList<>();
+
+        for (int idx : chosenIdx) {
+            double avgSimDouble = avgSim(pup.get(idx), newPop);
+            if (avgSimDouble < SIM_TRH)
+                lowSim.add(idx);
+            else
+                highSim.add(idx);
+        }
+
+        // highSim group if no lowSim chosenIdx exist.
+        List<Integer> choose = lowSim.isEmpty() ? highSim : lowSim;
+
+        int bestIdx = choose.get(0);
+        for (int idx : choose)
+            if (fitness.get(idx) < fitness.get(bestIdx))
+                bestIdx = idx;
+
+        return pup.get(bestIdx);
+    }
+
+    // average similarity between one individual and a group
+    private static double avgSim(Node individual, List<Node> group) {
+        if (group.isEmpty())
+            return 0.0;
+        double total = 0.0;
+        for (Node member : group)
+            total += similarity(individual, member);
+        return total / group.size();
+    }
+
     public static void computeEffort(List<Integer> successGenerations, int popSize) {
 
         int targetGen = 20;
@@ -269,8 +406,8 @@ public class EnergyPredictSBGP {
     public static void generateFitnessCases() {
 
         // Total fitness cases = 201604 - n
-        int totalRows = electricLoad.size() - n;
-        // int totalRows = 101604 - n;
+        // int totalRows = electricLoad.size() - n;
+        int totalRows = 101604 - n;
         double[][] X = new double[totalRows][n];
         double[] y = new double[totalRows];
 
@@ -425,8 +562,7 @@ public class EnergyPredictSBGP {
     public static Node makeTrees() {
         // randomize between 2 and MaxDepth
 
-        int depth = 2 + random.nextInt(MaxDepth - 1);
-
+        int depth = random.nextInt(MaxDepth - 1) + 2;
         if (random.nextDouble() < 0.5) {
             return makeFullTree(depth);
         } else {
