@@ -20,6 +20,7 @@ public class EnergyPredictGP {
     static double MUTATION = 0.2; // default mutation rate
     static final int TOURNAMENT = 5;
     static final int MAXTREENODES = 63;
+
     static double[][] X_train;
     static double[][] X_test;
     static double[] y_train; // Contains the targets
@@ -45,9 +46,11 @@ public class EnergyPredictGP {
             "DIV",
     };
     static String[] TERMINALS;
+    static int numForDataset = 1; // 0 = runs reads half of the dataset, 1 = runs 10k rows of the dataset, 2 going
+                                  // up = runs the full dataset
 
     public static void main(String[] args) {
-
+        System.out.println("Running: Standard GP");
         File csvFile = new File("Residential_Energy_Dataset_UK- 2014-2020.csv");
         try {
             Scanner readCSV = new Scanner(csvFile);
@@ -62,7 +65,25 @@ public class EnergyPredictGP {
             System.out.println("An error occurred.");
             e.printStackTrace();
         }
+        String datasetMode;
+        if (numForDataset == 0) {
+            datasetMode = "Half Dataset Loaded";
+        } else if (numForDataset == 1) {
+            datasetMode = "10,000 Rows Loaded";
+        } else {
+            datasetMode = "Full Dataset Loaded";
+        }
 
+        System.out.println(
+                "GP Config | Dataset: " + datasetMode +
+                        " | PopSize: " + PopSize +
+                        " | MaxDepth: " + MaxDepth +
+                        " | Variables: " + n +
+                        " | Generations: " + MAXGEN +
+                        " | Crossover: " + CROSSOVER +
+                        " | Mutation: " + MUTATION +
+                        " | Tournament: " + TOURNAMENT +
+                        " | MaxNodes: " + MAXTREENODES);
         generateFitnessCases();
         buildTerminalSet(n);
         System.out.println("Genetic Programming for Residential Energy Prediction:");
@@ -265,10 +286,18 @@ public class EnergyPredictGP {
     }
 
     public static void generateFitnessCases() {
-
+        int totalRows = 0;
         // Total fitness cases = 201604 - n
         // int totalRows = electricLoad.size() - n;
-        int totalRows = 101604 - n;
+        if (numForDataset == 0) {
+            totalRows = 101604 - n;
+
+        } else if (numForDataset == 1) {
+            totalRows = 10000 - n;
+        } else {
+
+            totalRows = electricLoad.size() - n;
+        }
         double[][] X = new double[totalRows][n];
         double[] y = new double[totalRows];
 

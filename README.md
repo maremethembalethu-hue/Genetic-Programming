@@ -2,95 +2,200 @@
 
 ## Introduction
 
-This project implements **Genetic Programming (GP)** in Java to perform **electricity load prediction** using historical residential energy consumption data. The system evolves mathematical expression trees that predict the next electricity load value based on previously observed readings.
+This project implements **Genetic Programming (GP)** and **Structural-Based Genetic Programming (SBGP)** in Java to perform **electricity load prediction** using historical residential energy consumption data.
+
+The system evolves mathematical expression trees that predict future electricity load values based on previously observed readings.
 
 The model performs **symbolic regression**, where GP searches for mathematical expressions that minimise prediction error. The fitness of each individual program is evaluated using **Mean Absolute Error (MAE)**.
 
-The dataset used contains electricity load measurements collected from UK residential households between **2014 and 2020** at **15-minute intervals**.
+The dataset contains electricity load measurements collected from UK residential households between **2014 and 2020** at **15-minute intervals**.
 
+---
 
 ## Requirements
 
 Before running the program, ensure the following are installed:
 
-* **Java Development Kit (JDK) 11 or newer**
-* At least **512 MB of available memory**
-* A terminal environment (Command Prompt, PowerShell, Bash, or Linux terminal)
+- **Java Development Kit (JDK) 11 or newer**
+- At least **512 MB of available memory**
+- A terminal environment (Command Prompt, PowerShell, Bash, or Linux terminal)
 
-You can verify Java installation by running:
+Verify installation:
+
+```
 java -version
-and
 javac -version
+```
+
+---
 
 ## Project Structure
 
+```
 Assignment 1/
-    EnergyPredictGP.java
+
+    EnergyPredictGP.java              (Standard GP)
+    EnergyPredictSBGP.java            (Structural-Based GP)
     Node.java
     NodePt.java
-    Residential_Energy_Dataset_UK- 2014-2020.csv
+    Residential_Energy_Dataset_UK-2014-2020.csv
     Makefile
     run.bat
     README.md
+```
 
+> The dataset file must remain in the same directory as the Java files.
 
-The dataset file must remain in the same directory as the Java files when compiling and running the program.
+---
 
 ## How to Run (Linux / macOS)
 
-1. Open a terminal.
-2. Navigate to the project directory.
+### Compile all files
 
-Compile the program:
+```
 make compile
+```
 
-Run the program:
-make run
+### Run Standard GP
 
-Run and compile programs:
-make all
+```
+make run-gp
+```
 
-Clean the .class:
+### Run Structural-Based GP (SBGP)
+
+```
+make run-sbgp
+```
+
+### Compile and Run GP
+
+```
+make all-gp
+```
+
+### Compile and Run SBGP
+
+```
+make all-sbgp
+```
+
+### Clean compiled files
+
+```
 make clean
+```
 
-
-If additional memory is needed:
+---
 
 ## How to Run (Windows)
 
-### Using Command Prompt
+### Using run.bat (Recommended)
 
-1. Open **Command Prompt**.
-2. Navigate to the project directory.
+```
+.\run.bat
+```
 
-Compile:
-javac EnergyPredictGP.java Node.java NodeList.java
+You will be prompted to choose:
+- `1` → Standard GP
+- `2` → Structural-Based GP (SBGP)
 
-Run:
+### Manual Compilation
+
+```
+javac EnergyPredictGP.java EnergyPredictSBGP.java Node.java NodePt.java
+```
+
+Run GP:
+
+```
 java EnergyPredictGP
+```
 
-Run and compile:
-.\run or .\run.bat
+Run SBGP:
 
-### Using PowerShell
+```
+java EnergyPredictSBGP
+```
 
-If using **PowerShell**, the commands are the same:
+---
 
-Compile:
-javac EnergyPredictGP.java Node.java NodeList.java
+## Parameter Configuration
 
+All parameters can be modified directly in:
 
-Run:
-java EnergyPredictGP
+- `EnergyPredictGP.java`
+- `EnergyPredictSBGP.java`
 
-Run and compile:
-.\run or .\run.bat
+### Key Parameters
+
+ Parameter | Description |
+
+ `PopSize` = Population size 
+ `MaxDepth` = Maximum tree depth 
+ `MAXGEN` = Number of generations 
+ `CROSSOVER` = Crossover rate
+ `MUTATION` = Mutation rate 
+`TOURNAMENT` = Tournament size 
+
+---
+
+## Dataset Size Control (IMPORTANT)
+
+The parameter controlling how much data is loaded is:
+
+```java
+static int numForDataset = 0;
+```
+
+### Dataset Modes
+
+| Value | Description |
+ `0` = Loads half of the dataset 
+ `1` = Loads 10,000 rows 
+ `2+` = Loads the full dataset 
+
+### Performance and Runtime Considerations
+
+The size of the dataset directly impacts execution time:
+
+- **Larger datasets** = more accurate results but slower execution
+- **Smaller datasets** = faster execution for testing and debugging
+
+**Recommendation:**
+- Use `numForDataset = 0` or `1` during development and testing
+- Use `numForDataset >= 2` for final evaluation
+
+### Purpose of Dataset Control
+
+The `numForDataset` parameter was introduced to address long runtime issues. By allowing partial dataset loading, the system enables faster experimentation while maintaining the ability to scale to the full dataset when required.
+
+---
+
+## If No Improvement Is Observed
+
+If the algorithm does not improve over generations, consider adjusting the following parameters:
+
+- Mutation rate (`MUTATION`)
+- Crossover rate (`CROSSOVER`)
+- Population size (`PopSize`)
+- Maximum tree depth (`MaxDepth`)
+- Tournament size (`TOURNAMENT`)
+- Dataset size (`numForDataset`)
+
+Reducing the dataset size can help to:
+
+- Identify issues faster
+- Improve debugging speed
+- Reduce long execution times
+
+---
 
 ## Expected Output
 
 During execution, the program prints:
 
-* Generation progress
-* Best fitness values
-* Results for each run
-* A final summary of prediction performance
+- Generation progress
+- Best fitness values
+- Results for each run
+- Final summary of prediction performance
